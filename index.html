@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PDF Viewer</title>
+    <!-- <script src="pdfjs-dist/legacy/build/pdf" /> -->
+    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@2.7.570/build/pdf.min.js"></script>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@2.2.228/build/pdf.min.js"></script> -->
+  </head>
+  <body>
+    <button id="prev">Previous</button>
+    <button id="next">Next</button>
+    <button id="zoomIn">+</button>
+    <button id="zoomOut">-</button>
+    <p>
+      Page:
+      <span id="page_num"></span>
+      /
+      <span id="page_count"></span>
+    </p>
+    <p>
+      Outline:
+      <span id="outline"></span>
+    </p>
+    <canvas id="pdf_canvas"></canvas>
+    <script>
+      console.log("Rendered");
+
+      let pdfDoc = null,
+        pageNumber = 1,
+        pageRendering = false,
+        pageNumPending = null,
+        scale = 1.5,
+        canvas = document.getElementById("pdf_canvas"),
+        context = canvas.getContext("2d");
+
+      pdfjsLib.getDocument("sample.pdf").promise.then((doc) => {
+        document.getElementById("page_count").textContent = doc.numPages;
+        // document.getElementById("page_num").textContent = doc.s;
+      });
+
+      function renderPage(num) {
+        console.log(num);
+        pageRendering = true;
+        pdfDoc.getPage(num).then((page) => {
+          let viewport = page.getViewport({ scale: scale });
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+          let renderContext = {
+            canvasContext: context,
+            viewport: viewport,
+          };
+          let renderTask = page.render(renderContext);
+          renderTask.promise.then(() => {
+            pageRendering = false;
+            if (pageNumPending !== null) {
+              renderPage(pageNumPending);
+              pageNumPending = null;
+            }
+          });
+        });
+        document.getElementById("page_num").textContent = num;
+      }
+
+      // Previous and Next functionality
+
+      function queueRendering(num) {
+        if (pageRendering) {
+          pageNumPending = num;
+        } else {
+          renderPage(num);
+        }
+      }
+
+      function PreviousPage() {
+        if (pageNumber <= 1) {
+          return;
+        } else {
+          pageNumber--;
+          queueRendering(pageNumber);
+        }
+      }
+
+      document.getElementById("prev").addEventListener("click", PreviousPage);
+
+      function NextPage() {
+        if (pageNumber >= pdfDoc.numPages) {
+          return;
+        } else {
+          pageNumber++;
+          queueRendering(pageNumber);
+        }
+      }
+
+      document.getElementById("next").addEventListener("click", NextPage);
+
+      //* Zooming func
+
+      function ZoomOut() {
+        scale -= 0.1;
+        renderPage(pageNumber);
+      }
+
+      function ZoomIn() {
+        scale += 0.1;
+        renderPage(pageNumber);
+      }
+
+      document.getElementById("zoomIn").addEventListener("click", ZoomIn);
+      document.getElementById("zoomOut").addEventListener("click", ZoomOut);
+
+      pdfjsLib.getDocument("sample.pdf").promise.then((doc) => {
+        console.log("Data: ", doc);
+        pdfDoc = doc;
+        document.getElementById("page_num").textContent = doc.numPages;
+        renderPage(pageNumber);
+      });
+
+      async function fetchOutline(samplePdfDoc) {
+        const doc = await pdfjsLib.getDocument(samplePdfDoc).promise;
+        // Get the outline
+        const outlineNodes = await doc.getOutline();
+        console.log(
+          "Outlines are: ",
+          outlineNodes.map((i) => i.title)
+        );
+      }
+
+      fetchOutline("./sample.pdf");
+    </script>
+  </body>
+</html>
